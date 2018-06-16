@@ -17,7 +17,7 @@ Settings = collections.namedtuple("Settings", "input, output, decorators")
 INP = None
 OUT = None
 SPLITCHAR = None
-DECORATORS = None
+DECORATIONS = None
 CHAPTERLABEL = None
 
 
@@ -34,7 +34,7 @@ def main(argv):
         parse_config()
     else:
         with open(configfile, 'w') as fout:
-            print("Building config file")
+            print("Building config file...")
             build_config()
             config.write(fout)
 
@@ -49,18 +49,18 @@ def main(argv):
 
     # Preprocess files to remove or replace characters
     header = print_header(header)
-    print("{} lines to process\n".format(len(filelines)))
+    print("{} lines to process.\n".format(len(filelines)))
     filelines = preprocess(filelines)
 
-    # Remove user defined decorators
+    # Remove user defined decorations
     header = print_header(header)
-    filelines, decoratorcount = remove_decorators(filelines)
-    print("{} decoratorcountrators have been removed\n".format(decoratorcount))
+    filelines, decoratorcount = remove_decorations(filelines)
+    print("{} decorations have been removed.\n".format(decoratorcount))
 
     # Remove panel labels
     header = print_header(header)
     filelines, panelcount = remove_panels(filelines)
-    print("{} panel labels have been removed\n".format(panelcount))
+    print("{} panel labels have been removed.\n".format(panelcount))
 
     # Remove non-Latin style characters
     header = print_header(header)
@@ -70,13 +70,28 @@ def main(argv):
     # Remove speaker labels
     header = print_header(header)
     filelines, speakercount = remove_speaker(filelines)
-    print("{} speaker labels have been removed\n".format(speakercount))
+    print("{} speaker labels have been removed.\n".format(speakercount))
+
+    # Truncate tildes
+    header = print_header(header)
+    filelines, tildecount = truncate_tildes(filelines)
+    print("{} lines have had tildes truncated.\n".format(tildecount))
+
+    # Truncate ellipses
+    header = print_header(header)
+    filelines, ellipsiscount = truncate_ellipses(filelines)
+    print("{} lines have had ellipses truncated.\n".format(ellipsiscount))
+
+    # Remove blank lines
+    header = print_header(header)
+    filelines, blankcount = remove_blank_lines(filelines)
+    print("{} blank lines have been removed.\n".format(blankcount))
 
     # Write to output file
     header = print_header(header)
     outcount = write_output(files[1], filelines, remlines)
     print("{} lines have been written to {}.\n".format(outcount, files[1]))
-    header = print_header(header)
+    print_header(header)
 
 
 def build_config():
@@ -87,7 +102,7 @@ def build_config():
                        'output': '',
                        'chapterlabel': 'chapter'}
     config['ADVANCED'] = {'splitchar': ',',
-                          'decorators': ''}
+                          'regex': ''}
     with open(configfile, 'w') as fout:
         config.write(fout)
 
@@ -96,12 +111,12 @@ def parse_config():
     """
     Sets global variables from config
     """
-    global INP, OUT, SPLITCHAR, DECORATORS, CHAPTERLABEL
+    global INP, OUT, SPLITCHAR, DECORATIONS, CHAPTERLABEL
     INP = config['BASIC']['input']
     OUT = config['BASIC']['output']
     CHAPTERLABEL = config['BASIC']['chapterlabel']
     SPLITCHAR = config['ADVANCED']['splitchar']
-    DECORATORS = config['ADVANCED']['decorators'].split(SPLITCHAR)
+    DECORATIONS = config['ADVANCED']['regex'].split(SPLITCHAR)
 
 
 def print_header(hdr_idx):
@@ -114,10 +129,13 @@ def print_header(hdr_idx):
               "                       Parsing Config",
               "                    Obtaining file names",
               "                        Preprocessing",
-              "                     Removing Decorators",
+              "                   Removing Decoratorations",
               "                    Removing Panel Labels",
               "      Filtering lines with non-Latin style characters",
               "                 Removing speaker labels",
+              "                    Truncating tildes",
+              "                   Truncating ellipses",
+              "                    Remove blank lines",
               "                 Writing output to file",
               "                         Complete"]
     line = "==========================================================="
@@ -179,7 +197,7 @@ def is_english(s):
                   'ů',
                   'ẘ', 'ẙ', 'Ǻ', 'ǻ', 'Ḁ', 'ḁ', 'Ã', 'ã', 'Ẽ', 'ẽ', 'Ĩ', 'ĩ', 'Ñ', 'ñ', 'Õ', 'õ', 'Ũ', 'ũ', 'Ṽ', 'ṽ',
                   'Ỹ',
-                  'ỹ', 'Ṍ', 'ṍ', 'Ṹ', 'ṹ', 'Ṏ', 'ṏ', 'Ȭ', 'ȭ', 'Ḛ', 'ḛ', 'Ḭ', 'ḭ', 'Ṵ', 'ṵ', ' ', '’', ':', '​', '—'}
+                  'ỹ', 'Ṍ', 'ṍ', 'Ṹ', 'ṹ', 'Ṏ', 'ṏ', 'Ȭ', 'ȭ', 'Ḛ', 'ḛ', 'Ḭ', 'ḭ', 'Ṵ', 'ṵ', ' ', '’', ':', '​', '—', '”', '”', '‘'}
     slist = set(s)
     slist = list(((((slist - punctuation) - diacritics) - alpha) - num))
     s = ''.join(slist)
@@ -282,8 +300,16 @@ def preprocess(lines):
     :return: List of preprocessed lines
     """
     linesout = []
+    badchars = {'...': ['…'],
+                "'": ['’', '‘', '『', '』', '﹃', '﹄', '〈', '〉', ],
+                '"': ['“', '”', '「', '」', '﹁', '﹂', '《', '》', ]
+                }
     for line in lines:
-        linesout.append(line.replace('…', '...').replace('’', "'"))
+        temp = line
+        for key, value in badchars.items():
+            for item in value:
+                temp = temp.replace(item, key)
+        linesout.append(temp)
     return linesout
 
 
@@ -344,24 +370,56 @@ def remove_speaker(lines):
     return outlines, speakercount
 
 
-def remove_decorators(lines):
+def remove_decorations(lines):
     """
-    Remove decorators from the file using regex
+    Remove decorations from the file using regex
     :param lines: List of lines with only Latin-style characters
     :return outlines: List of lines containing only Latin-style characters
-    :return dcount: Integer of how many lines contained decorators
+    :return dcount: Integer of how many lines contained decorations
     """
     outlines = []
     dcount = 0
     for line in lines:
         templine = line
-        for d in DECORATORS:
+        for d in DECORATIONS:
             templine = re.sub(d, "", templine)
-            print(templine)
         outlines.append(templine)
         if line != templine:
             dcount += 1
     return outlines, dcount
+
+
+def truncate_tildes(lines):
+    outlines = []
+    count = 0
+    for line in lines:
+        temp = re.sub("~+", "~", line)
+        outlines.append(temp)
+        if temp != line:
+            count += 1
+    return outlines, count
+
+
+def truncate_ellipses(lines):
+    outlines = []
+    count = 0
+    for line in lines:
+        temp = re.sub("(\.\.\.)+", "...", line)
+        outlines.append(temp)
+        if temp != line:
+            count += 1
+    return outlines, count
+
+
+def remove_blank_lines(lines):
+    outlines = []
+    count = 0
+    for line in lines:
+        if not line.strip() == '':
+            outlines.append(line)
+        else:
+            count += 1
+    return outlines, count
 
 
 if __name__ == '__main__':

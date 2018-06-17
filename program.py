@@ -19,19 +19,28 @@ OUT = None
 SPLITCHAR = None
 DECORATIONS = None
 CHAPTERLABEL = None
+FEATURES = None
 
 
 def main(argv):
     filelines = []
-    header = 0
-    header = print_header(header)
+    print_header("                   Typesetterer Formatter")
 
     # Parse config or build one if needed
-    header = print_header(header)
+    print_header("                       Parsing Config",)
     if os.path.exists(configfile):
         print("Parsing config file")
         config.read(configfile)
-        parse_config()
+        seriesconfig = config["BASIC"]["perseriesconfig"]
+        print(seriesconfig)
+        if seriesconfig == "":
+            parse_config()
+        else:
+            config.remove_section("FEATURES")
+            config.remove_section("BASIC")
+            config.remove_section("ADVANCED")
+            config.read(seriesconfig)
+            parse_config()
     else:
         with open(configfile, 'w') as fout:
             print("Building config file...")
@@ -39,8 +48,11 @@ def main(argv):
             config.write(fout)
 
     # Get the input and output files
-    header = print_header(header)
-    files = get_files(argv)
+    print_header("                    Obtaining file names")
+    if not FEATURES["inputisouput"]:
+        files = get_files(argv)
+    else:
+        files = INP, OUT
     print("Input file is {}.".format(files[0]))
     print("Output file is {}.\n".format(files[1]))
     with codecs.open(files[0], 'r', encoding='utf-8') as fout:
@@ -48,50 +60,58 @@ def main(argv):
             filelines.append(line)
 
     # Preprocess files to remove or replace characters
-    header = print_header(header)
-    print("{} lines to process.\n".format(len(filelines)))
-    filelines = preprocess(filelines)
+    if FEATURES["preprocess"]:
+        print_header("                        Preprocessing")
+        print("{} lines to process.\n".format(len(filelines)))
+        filelines = preprocess(filelines)
 
     # Remove user defined decorations
-    header = print_header(header)
-    filelines, decoratorcount = remove_decorations(filelines)
-    print("{} decorations have been removed.\n".format(decoratorcount))
+    if FEATURES["decorations"]:
+        print_header("                   Removing Decorations")
+        filelines, decoratorcount = remove_decorations(filelines)
+        print("{} decorations have been removed.\n".format(decoratorcount))
 
     # Remove panel labels
-    header = print_header(header)
-    filelines, panelcount = remove_panels(filelines)
-    print("{} panel labels have been removed.\n".format(panelcount))
+    if FEATURES["panels"]:
+        print_header("                    Removing Panel Labels")
+        filelines, panelcount = remove_panels(filelines)
+        print("{} panel labels have been removed.\n".format(panelcount))
 
     # Remove non-Latin style characters
-    header = print_header(header)
-    filelines, removed, remlines = test_file(filelines)
-    print("{} lines have been removed.\n".format(removed))
+    if FEATURES["nonlatin"]:
+        print_header("      Filtering lines with non-Latin style characters")
+        filelines, removed, remlines = test_file(filelines)
+        print("{} lines have been removed.\n".format(removed))
 
     # Remove speaker labels
-    header = print_header(header)
-    filelines, speakercount = remove_speaker(filelines)
-    print("{} speaker labels have been removed.\n".format(speakercount))
+    if FEATURES["speakers"]:
+        print_header("                 Removing speaker labels")
+        filelines, speakercount = remove_speaker(filelines)
+        print("{} speaker labels have been removed.\n".format(speakercount))
 
     # Truncate tildes
-    header = print_header(header)
-    filelines, tildecount = truncate_tildes(filelines)
-    print("{} lines have had tildes truncated.\n".format(tildecount))
+    if FEATURES["tildes"]:
+        print_header("                    Truncating tildes")
+        filelines, tildecount = truncate_tildes(filelines)
+        print("{} lines have had tildes truncated.\n".format(tildecount))
 
     # Truncate ellipses
-    header = print_header(header)
-    filelines, ellipsiscount = truncate_ellipses(filelines)
-    print("{} lines have had ellipses truncated.\n".format(ellipsiscount))
+    if FEATURES["ellipses"]:
+        print_header("                   Truncating ellipses")
+        filelines, ellipsiscount = truncate_ellipses(filelines)
+        print("{} lines have had ellipses truncated.\n".format(ellipsiscount))
 
     # Remove blank lines
-    header = print_header(header)
-    filelines, blankcount = remove_blank_lines(filelines)
-    print("{} blank lines have been removed.\n".format(blankcount))
+    if FEATURES["blanklines"]:
+        print_header("                    Remove blank lines")
+        filelines, blankcount = remove_blank_lines(filelines)
+        print("{} blank lines have been removed.\n".format(blankcount))
 
     # Write to output file
-    header = print_header(header)
-    outcount = write_output(files[1], filelines, remlines)
+    print_header("                 Writing output to file")
+    outcount = write_output(files[1], filelines)
     print("{} lines have been written to {}.\n".format(outcount, files[1]))
-    print_header(header)
+    print_header("                         Complete")
 
 
 def build_config():
@@ -100,9 +120,19 @@ def build_config():
     """
     config['BASIC'] = {'input': '',
                        'output': '',
-                       'chapterlabel': 'chapter'}
+                       'chapterlabel': 'chapter',
+                       'perseriesconfig': ''}
     config['ADVANCED'] = {'splitchar': ',',
                           'regex': ''}
+    config['FEATURES'] = {'preprocess': 'True',
+                          'decorations': 'True',
+                          'panels': 'True',
+                          'nonlatin': 'True',
+                          'speakers': 'True',
+                          'tildes': 'True',
+                          'ellipses': 'True',
+                          'blanklines': 'True',
+                          'inputisoutput': 'False'}
     with open(configfile, 'w') as fout:
         config.write(fout)
 
@@ -111,36 +141,33 @@ def parse_config():
     """
     Sets global variables from config
     """
-    global INP, OUT, SPLITCHAR, DECORATIONS, CHAPTERLABEL
+    global INP, OUT, SPLITCHAR, DECORATIONS, CHAPTERLABEL, FEATURES
     INP = config['BASIC']['input']
     OUT = config['BASIC']['output']
     CHAPTERLABEL = config['BASIC']['chapterlabel']
     SPLITCHAR = config['ADVANCED']['splitchar']
     DECORATIONS = config['ADVANCED']['regex'].split(SPLITCHAR)
+    FEATURES = {"preprocess": config['FEATURES'].getboolean('preprocess'),
+                "decorations": config['FEATURES'].getboolean('decorations'),
+                "panels": config['FEATURES'].getboolean('panels'),
+                "nonlatin": config['FEATURES'].getboolean('nonlatin'),
+                "speakers": config['FEATURES'].getboolean('speakers'),
+                "tildes": config['FEATURES'].getboolean('tildes'),
+                "ellipses": config['FEATURES'].getboolean('ellipses'),
+                "blanklines": config['FEATURES'].getboolean('blanklines'),
+                "inputisouput": config['FEATURES'].getboolean('inputisoutput')}
+    if FEATURES["inputisouput"]:
+        OUT = INP
 
 
-def print_header(hdr_idx):
+def print_header(header):
     """
     Print various headers based on index
-    :param hdr_idx: Int of header index
+    :param header: String containing header text
     :return: Incremented header index
     """
-    header = ["                   Typesetterer Formatter",
-              "                       Parsing Config",
-              "                    Obtaining file names",
-              "                        Preprocessing",
-              "                   Removing Decoratorations",
-              "                    Removing Panel Labels",
-              "      Filtering lines with non-Latin style characters",
-              "                 Removing speaker labels",
-              "                    Truncating tildes",
-              "                   Truncating ellipses",
-              "                    Remove blank lines",
-              "                 Writing output to file",
-              "                         Complete"]
     line = "==========================================================="
-    print('{0}\n{1}\n{0}'.format(line, header[hdr_idx]))
-    return hdr_idx+1
+    print('{0}\n{1}\n{0}'.format(line, header))
 
 
 def is_english(s):
@@ -249,7 +276,7 @@ def get_files(argv):
         else:
             if '.' not in OUT:
                 OUT = INP[:-4] + OUT + ".txt"
-            return INP, OUT
+                return INP, OUT
 
 
 def test_file(filelines):
@@ -274,7 +301,7 @@ def test_file(filelines):
     return lines, count, notlines
 
 
-def write_output(file, lines, notlines):
+def write_output(file, lines):
     """
     Create and fill output file
     :param file: String of output file name
@@ -287,9 +314,9 @@ def write_output(file, lines, notlines):
         for line in lines:
             fout.write('{}\r\n'.format(line))
             count += 1
-    with codecs.open("debug.txt", 'w', encoding='utf-8') as fout:
-        for line in notlines:
-            fout.write('{}\r\n'.format(line))
+    # with codecs.open("debug.txt", 'w', encoding='utf-8') as fout:
+    #     for line in notlines:
+    #         fout.write('{}\r\n'.format(line))
     return count
 
 
@@ -349,9 +376,14 @@ def remove_speaker(lines):
                 if char == ":":
                     curline = line[:charcount].lower()
                     try:
+                        cursplit = curline.split(":")
                         if curline[-4:].strip().lower() == "sfx:" or curline[-5:].strip().lower() == "note:" \
                                 or curline[:len(CHAPTERLABEL)].strip().lower() == CHAPTERLABEL:
                             outlines.append(line)
+                        elif len(cursplit) > 1:
+                            split = cursplit[0]
+                            if "note" in split or "/n" in split or "\\n" in split:
+                                outlines.append(line)
                         else:
                             if curline.count(" ") > 1:
                                 print(line)

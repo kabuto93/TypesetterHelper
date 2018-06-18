@@ -32,7 +32,6 @@ def main(argv):
         print("Parsing config file")
         config.read(configfile)
         seriesconfig = config["BASIC"]["perseriesconfig"]
-        print(seriesconfig)
         if seriesconfig == "":
             parse_config()
         else:
@@ -323,7 +322,7 @@ def write_output(file, lines):
 def preprocess(lines):
     """
     Preprocess the script for future steps to run smoothly
-    :param lines: List of lines with only Latin-style characters
+    :param lines: List of lines to process
     :return: List of preprocessed lines
     """
     linesout = []
@@ -343,7 +342,7 @@ def preprocess(lines):
 def remove_panels(lines):
     """
     Remove the panel labels from the file
-    :param lines: List of lines with only Latin-style characters
+    :param lines: List of lines to process
     :return outlines: List of lines containing only Latin-style characters
     :return count: Integer of how many lines contained panel labels
     """
@@ -360,7 +359,7 @@ def remove_panels(lines):
 def remove_speaker(lines):
     """
     Remove the speaker labels from the file
-    :param lines: List of lines with only Latin-style characters
+    :param lines: List of lines to process
     :return outlines: List of lines containing only Latin-style characters
     :return speakercount: Integer of how many lines contained chapter labels
     """
@@ -405,7 +404,7 @@ def remove_speaker(lines):
 def remove_decorations(lines):
     """
     Remove decorations from the file using regex
-    :param lines: List of lines with only Latin-style characters
+    :param lines: List of lines to process
     :return outlines: List of lines containing only Latin-style characters
     :return dcount: Integer of how many lines contained decorations
     """
@@ -414,7 +413,7 @@ def remove_decorations(lines):
     for line in lines:
         templine = line
         for d in DECORATIONS:
-            templine = re.sub(d, "", templine)
+            templine = re.sub(d, "", templine, flags=re.IGNORECASE)
         outlines.append(templine)
         if line != templine:
             dcount += 1
@@ -422,6 +421,12 @@ def remove_decorations(lines):
 
 
 def truncate_tildes(lines):
+    """
+    Truncate extra tildes
+    :param lines: List of lines to process
+    :return outlines: List of lines containing only Latin-style characters
+    :return count: Integer of how many lines contained extra tildes
+    """
     outlines = []
     count = 0
     for line in lines:
@@ -433,6 +438,12 @@ def truncate_tildes(lines):
 
 
 def truncate_ellipses(lines):
+    """
+    Truncate extra ellipses
+    :param lines: List of lines to process
+    :return outlines: List of lines containing only Latin-style characters
+    :return count: Integer of how many lines contained extra ellipses
+    """
     outlines = []
     count = 0
     for line in lines:
@@ -444,6 +455,12 @@ def truncate_ellipses(lines):
 
 
 def remove_blank_lines(lines):
+    """
+    Remove empty lines
+    :param lines: List of lines to process
+    :return outlines: List of lines containing only Latin-style characters
+    :return count: Integer of how many empty lines were removed
+    """
     outlines = []
     count = 0
     for line in lines:

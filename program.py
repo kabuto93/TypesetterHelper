@@ -376,13 +376,12 @@ def remove_speaker(lines):
                     curline = line[:charcount].lower()
                     try:
                         cursplit = curline.split(":")
+                        split = cursplit[0]
                         if curline[-4:].strip().lower() == "sfx:" or curline[-5:].strip().lower() == "note:" \
                                 or curline[:len(CHAPTERLABEL)].strip().lower() == CHAPTERLABEL:
                             outlines.append(line)
-                        elif len(cursplit) > 1:
-                            split = cursplit[0]
-                            if "note" in split or "/n" in split or "\\n" in split:
-                                outlines.append(line)
+                        elif "note" in split or "/n" in split or "\\n" in split:
+                            outlines.append(line)
                         else:
                             if curline.count(" ") > 1:
                                 print(line)
